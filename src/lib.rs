@@ -23,7 +23,7 @@ use std::time::Instant;
 /// let elapsed_time = measure_elapsed_time(|| {
 ///     sleep(Duration::from_millis(1500));
 /// });
-/// assert!(elapsed_time == "1s 500ms" || elapsed_time == "1s 501ms");
+/// assert!(elapsed_time == "1.5s" || elapsed_time == "1.501s");
 /// ```
 pub fn measure_elapsed_time<F>(f: F) -> String
 where
@@ -75,25 +75,32 @@ fn format_duration_calculate(duration: std::time::Duration) -> DurationComponent
 
 /// Formats the duration components into a human-readable string.
 fn format_duration_format(components: &DurationComponents) -> String {
+    // Helper function to format seconds with milliseconds
+    let format_seconds = |secs: u64, ms: u32| {
+        if secs == 0 {
+            format!("{}ms", ms)
+        } else {
+            format!("{}.{:03}s", secs, ms)
+        }
+    };
+
     if components.weeks > 0 {
-        format!("{}w {}d {}h {}m {}s {}ms", 
+        format!("{}w {}d {}h {}m {}", 
             components.weeks, components.remaining_days, components.remaining_hours, 
-            components.minutes, components.seconds, components.milliseconds)
+            components.minutes, format_seconds(components.seconds, components.milliseconds))
     } else if components.remaining_days > 0 {
-        format!("{}d {}h {}m {}s {}ms", 
+        format!("{}d {}h {}m {}", 
             components.remaining_days, components.remaining_hours, 
-            components.minutes, components.seconds, components.milliseconds)
+            components.minutes, format_seconds(components.seconds, components.milliseconds))
     } else if components.remaining_hours > 0 {
-        format!("{}h {}m {}s {}ms", 
+        format!("{}h {}m {}", 
             components.remaining_hours, components.minutes, 
-            components.seconds, components.milliseconds)
+            format_seconds(components.seconds, components.milliseconds))
     } else if components.minutes > 0 {
-        format!("{}m {}s {}ms", 
-            components.minutes, components.seconds, components.milliseconds)
-    } else if components.seconds > 0 {
-        format!("{}s {}ms", components.seconds, components.milliseconds)
+        format!("{}m {}", 
+            components.minutes, format_seconds(components.seconds, components.milliseconds))
     } else {
-        format!("{}ms", components.milliseconds)
+        format_seconds(components.seconds, components.milliseconds)
     }
 }
 
@@ -116,9 +123,9 @@ fn format_duration_format(components: &DurationComponents) -> String {
 /// use std::time::Duration;
 /// use elapsed_time::format_duration;
 ///
-/// assert_eq!(format_duration(Duration::from_secs(60*60+60+1)), "1h 1m 1s 0ms");
-/// assert_eq!(format_duration(Duration::from_secs(61)), "1m 1s 0ms");
-/// assert_eq!(format_duration(Duration::from_secs(1)), "1s 0ms");
+/// assert_eq!(format_duration(Duration::from_secs(60*60+60+1)), "1h 1m 1.001s");
+/// assert_eq!(format_duration(Duration::from_secs(61)), "1m 1.001s");
+/// assert_eq!(format_duration(Duration::from_secs(1)), "1.001s");
 /// assert_eq!(format_duration(Duration::from_millis(500)), "500ms");
 /// ```
 pub fn format_duration(duration: std::time::Duration) -> String {
@@ -156,7 +163,7 @@ mod tests {
                     seconds: 5,
                     milliseconds: 6,
                 },
-                "1w 2d 3h 4m 5s 6ms",
+                "1w 2d 3h 4m 5.006s",
             ),
             (
                 DurationComponents {
@@ -167,7 +174,7 @@ mod tests {
                     seconds: 5,
                     milliseconds: 6,
                 },
-                "2d 3h 4m 5s 6ms",
+                "2d 3h 4m 5.006s",
             ),
             (
                 DurationComponents {
@@ -178,7 +185,51 @@ mod tests {
                     seconds: 5,
                     milliseconds: 6,
                 },
-                "3h 4m 5s 6ms",
+                "3h 4m 5.006s",
+            ),
+            (
+                DurationComponents {
+                    weeks: 0,
+                    remaining_days: 0,
+                    remaining_hours: 0,
+                    minutes: 4,
+                    seconds: 5,
+                    milliseconds: 6,
+                },
+                "4m 5.006s",
+            ),
+            (
+                DurationComponents {
+                    weeks: 0,
+                    remaining_days: 0,
+                    remaining_hours: 0,
+                    minutes: 0,
+                    seconds: 5,
+                    milliseconds: 6,
+                },
+                "5.006s",
+            ),
+            (
+                DurationComponents {
+                    weeks: 0,
+                    remaining_days: 0,
+                    remaining_hours: 0,
+                    minutes: 0,
+                    seconds: 0,
+                    milliseconds: 6,
+                },
+                "6ms",
+            ),
+            (
+                DurationComponents {
+                    weeks: 0,
+                    remaining_days: 0,
+                    remaining_hours: 0,
+                    minutes: 0,
+                    seconds: 0,
+                    milliseconds: 500,
+                },
+                "500ms",
             ),
         ];
 
@@ -192,16 +243,18 @@ mod tests {
         let elapsed_time = measure_elapsed_time(|| {
             std::thread::sleep(Duration::from_millis(1500));
         });
-        assert!(elapsed_time == "1s 500ms" || elapsed_time == "1s 501ms");
+        assert!(elapsed_time == "1.500s" || elapsed_time == "1.501s");
     }
 
     #[test]
     fn test_format_duration() {
         let test_cases = vec![
-            (Duration::from_secs(60*60+60+1), "1h 1m 1s 0ms"),
-            (Duration::from_secs(61), "1m 1s 0ms"),
-            (Duration::from_secs(1), "1s 0ms"),
+            (Duration::from_secs(60*60+60+1), "1h 1m 1.001s"),
+            (Duration::from_secs(61), "1m 1.001s"),
+            (Duration::from_secs(1), "1.001s"),
             (Duration::from_millis(500), "500ms"),
+            (Duration::from_millis(100), "100ms"),
+            (Duration::from_millis(1), "1ms"),
         ];
 
         for (duration, expected) in test_cases {
