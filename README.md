@@ -2,6 +2,38 @@
 
 A Rust library for measuring and formatting elapsed time in a human-readable format. This library provides simple and intuitive functions to measure code execution time and format time durations.
 
+## Quick Start
+
+Here's how to measure how long your code takes to run:
+
+```rust
+use elapsed_time::measure_elapsed_time;
+
+// Example 1: Measure a computation
+let result = measure_elapsed_time(|| {
+    // Your computation here
+    let mut sum = 0;
+    for i in 0..1_000_000 {
+        sum += i;
+    }
+    println!("Sum: {}", sum);
+});
+println!("Computation took: {}", result); // e.g., "32ms"
+
+// Example 2: Measure an I/O operation
+let result = measure_elapsed_time(|| {
+    std::fs::read_to_string("large_file.txt").unwrap();
+});
+println!("File read took: {}", result); // e.g., "1s 243ms"
+
+// Example 3: Measure a network request
+let result = measure_elapsed_time(|| {
+    // Using reqwest for example
+    // reqwest::blocking::get("https://www.rust-lang.org").unwrap();
+});
+println!("Request took: {}", result); // e.g., "843ms"
+```
+
 ## Features
 
 - Measure execution time of any code block
@@ -29,7 +61,7 @@ elapsed_time = "0.1.0"
 
 ### Measuring Execution Time
 
-Use `measure_elapsed_time` to measure how long a piece of code takes to execute:
+Use `measure_elapsed_time` to measure how long a pieces of code takes to execute:
 
 ```rust
 use elapsed_time::measure_elapsed_time;
