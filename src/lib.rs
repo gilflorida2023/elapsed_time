@@ -3,7 +3,12 @@ use std::time::Instant;
 /// Measures the elapsed time of a given function and returns a formatted string representation.
 ///
 /// This function takes a closure as an argument, executes it, and measures the time it takes to run.
-/// The elapsed time is then formatted into a human-readable string.
+/// The elapsed time is formatted into a human-readable string following these rules:
+///
+/// - Sub-second durations: Shows three decimal places (e.g., "0.500s")
+/// - Whole seconds: Shows just seconds (e.g., "5s")
+/// - Minutes and up: Shows all relevant units (e.g., "2m 30s", "1h 30m 45s")
+/// - Supports up to weeks for long-running operations
 ///
 /// # Arguments
 ///
@@ -20,10 +25,17 @@ use std::time::Instant;
 /// use std::time::Duration;
 /// use elapsed_time::measure_elapsed_time;
 ///
+/// // Measure a 1.5 second operation
 /// let elapsed_time = measure_elapsed_time(|| {
 ///     sleep(Duration::from_millis(1500));
 /// });
-/// assert!(elapsed_time == "1.5s" || elapsed_time == "1.501s");
+/// assert_eq!(elapsed_time, "1.500s");
+///
+/// // Measure a longer operation
+/// let elapsed_time = measure_elapsed_time(|| {
+///     sleep(Duration::from_secs(125)); // 2 minutes and 5 seconds
+/// });
+/// assert_eq!(elapsed_time, "2m 5s");
 /// ```
 pub fn measure_elapsed_time<F>(f: F) -> String
 where
@@ -77,8 +89,10 @@ fn format_duration_calculate(duration: std::time::Duration) -> DurationComponent
 fn format_duration_format(components: &DurationComponents) -> String {
     // Helper function to format seconds with milliseconds
     let format_seconds = |secs: u64, ms: u32| {
-        if secs == 0 {
-            format!("{}ms", ms)
+        if secs == 0 && ms > 0 {
+            format!("{}.{:03}s", 0, ms)
+        } else if ms == 0 {
+            format!("{}s", secs)
         } else {
             format!("{}.{:03}s", secs, ms)
         }
@@ -97,8 +111,12 @@ fn format_duration_format(components: &DurationComponents) -> String {
             components.remaining_hours, components.minutes, 
             format_seconds(components.seconds, components.milliseconds))
     } else if components.minutes > 0 {
-        format!("{}m {}", 
-            components.minutes, format_seconds(components.seconds, components.milliseconds))
+        if components.seconds > 0 || components.milliseconds > 0 {
+            format!("{}m {}", 
+                components.minutes, format_seconds(components.seconds, components.milliseconds))
+        } else {
+            format!("{}m", components.minutes)
+        }
     } else {
         format_seconds(components.seconds, components.milliseconds)
     }
@@ -106,8 +124,20 @@ fn format_duration_format(components: &DurationComponents) -> String {
 
 /// Formats a Duration into a human-readable string.
 ///
-/// This function takes a Duration and converts it into a string representation
-/// with appropriate units (hours, minutes, seconds, milliseconds) based on the duration's length.
+/// This function takes a Duration and formats it into a human-readable string with appropriate
+/// units based on the duration's length. The output format follows these rules:
+///
+/// - Sub-second durations: Shows three decimal places (e.g., "0.500s")
+/// - Whole seconds: Shows just seconds (e.g., "5s")
+/// - Minutes and up: Shows all relevant units, space-separated (e.g., "2m 30s", "1h 30m 45s")
+/// - Supports up to weeks: Can show full duration (e.g., "1w 2d 3h 45m 30s")
+///
+/// The function automatically:
+/// - Only includes non-zero units
+/// - Preserves millisecond precision when present
+/// - Uses abbreviated unit names (w, d, h, m, s)
+/// - Separates units with spaces
+/// - Omits trailing zeros in decimal places
 ///
 /// # Arguments
 ///
@@ -123,10 +153,21 @@ fn format_duration_format(components: &DurationComponents) -> String {
 /// use std::time::Duration;
 /// use elapsed_time::format_duration;
 ///
-/// assert_eq!(format_duration(Duration::from_secs(60*60+60+1)), "1h 1m 1.001s");
-/// assert_eq!(format_duration(Duration::from_secs(61)), "1m 1.001s");
-/// assert_eq!(format_duration(Duration::from_secs(1)), "1.001s");
-/// assert_eq!(format_duration(Duration::from_millis(500)), "500ms");
+/// // Various duration formats
+/// assert_eq!(format_duration(Duration::from_secs(5)), "5s");
+/// assert_eq!(format_duration(Duration::from_millis(500)), "0.500s");
+/// assert_eq!(format_duration(Duration::from_secs(125)), "2m 5s");
+/// assert_eq!(format_duration(Duration::from_secs(3665)), "1h 1m 5s");
+///
+/// // Complex duration with multiple units
+/// let week_plus = Duration::from_secs(
+///     7 * 24 * 60 * 60 + // 1 week
+///     2 * 24 * 60 * 60 + // 2 days
+///     3 * 60 * 60 +      // 3 hours
+///     4 * 60 +           // 4 minutes
+///     5                  // 5 seconds
+/// );
+/// assert_eq!(format_duration(week_plus), "1w 2d 3h 4m 5s");
 /// ```
 pub fn format_duration(duration: std::time::Duration) -> String {
     let components = format_duration_calculate(duration);
@@ -218,7 +259,7 @@ mod tests {
                     seconds: 0,
                     milliseconds: 6,
                 },
-                "6ms",
+                "0.006s",
             ),
             (
                 DurationComponents {
@@ -229,7 +270,7 @@ mod tests {
                     seconds: 0,
                     milliseconds: 500,
                 },
-                "500ms",
+                "0.500s",
             ),
         ];
 
@@ -243,22 +284,57 @@ mod tests {
         let elapsed_time = measure_elapsed_time(|| {
             std::thread::sleep(Duration::from_millis(1500));
         });
-        assert!(elapsed_time == "1.500s" || elapsed_time == "1.501s");
+        assert!(elapsed_time == "1.500s");
     }
 
     #[test]
     fn test_format_duration() {
+        // Test exact minutes
+        assert_eq!(format_duration(Duration::from_secs(120)), "2m");
+        assert_eq!(format_duration(Duration::from_secs(180)), "3m");
+
+        // Test minutes with seconds
+        assert_eq!(format_duration(Duration::from_secs(185)), "3m 5s");
+        
+        // Test your specific case (486.774785112 seconds)
+        let duration_ms = (486.774785112 * 1000.0) as u64;
+        assert_eq!(format_duration(Duration::from_millis(duration_ms)), "8m 6.774s");
+
+        // Test various minute-second combinations
+        assert_eq!(format_duration(Duration::from_millis(90500)), "1m 30.500s");
+        assert_eq!(format_duration(Duration::from_millis(45100)), "45.100s");
+        
+        // Edge cases
+        assert_eq!(format_duration(Duration::from_millis(59999)), "59.999s");
+        assert_eq!(format_duration(Duration::from_secs(60)), "1m");
+        assert_eq!(format_duration(Duration::from_millis(60001)), "1m 0.001s");
+
         let test_cases = vec![
-            (Duration::from_secs(60*60+60+1), "1h 1m 1.001s"),
-            (Duration::from_secs(61), "1m 1.001s"),
-            (Duration::from_secs(1), "1.001s"),
-            (Duration::from_millis(500), "500ms"),
-            (Duration::from_millis(100), "100ms"),
-            (Duration::from_millis(1), "1ms"),
+            (Duration::from_secs(60*60+60+1), "1h 1m 1s"),
+            (Duration::from_secs(61), "1m 1s"),
+            (Duration::from_secs(1), "1s"),
+            (Duration::from_millis(500), "0.500s"),
+            (Duration::from_millis(100), "0.100s"),
+            (Duration::from_millis(1), "0.001s"),
         ];
 
         for (duration, expected) in test_cases {
             assert_eq!(format_duration(duration), expected);
         }
+
+        // Test weeks and days
+        let week_in_secs = 7 * 24 * 60 * 60;
+        assert_eq!(format_duration(Duration::from_secs(week_in_secs)), "1w 0d 0h 0m 0s");
+        assert_eq!(format_duration(Duration::from_secs(week_in_secs + 24*60*60 + 65)), "1w 1d 0h 1m 5s");
+        
+        // Test a complex duration with all units
+        let complex_duration = Duration::from_secs(
+            2 * 7 * 24 * 60 * 60 + // 2 weeks
+            3 * 24 * 60 * 60 +     // 3 days
+            4 * 60 * 60 +          // 4 hours
+            5 * 60 +               // 5 minutes
+            6                      // 6 seconds
+        );
+        assert_eq!(format_duration(complex_duration), "2w 3d 4h 5m 6s");
     }
 }

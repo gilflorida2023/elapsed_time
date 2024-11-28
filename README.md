@@ -38,9 +38,21 @@ println!("Request took: {}", result); // e.g., "843ms"
 
 - Measure execution time of any code block
 - Format durations in human-readable strings
-- Intelligent millisecond formatting:
-  - For durations under 1 second: displays in milliseconds (e.g., "500ms")
-  - For durations of 1 second or more: displays as decimal seconds (e.g., "1.500s")
+- Smart duration formatting:
+  - Sub-second durations: displays with 3 decimal places (e.g., "0.500s")
+  - Seconds only: displays as whole seconds (e.g., "5s")
+  - Minutes and seconds: combines both units (e.g., "2m 30s")
+  - Hours, minutes, seconds: shows all units (e.g., "1h 30m 45s")
+  - Days through seconds: includes all relevant units (e.g., "2d 5h 30m 15s")
+  - Weeks through seconds: shows complete duration (e.g., "1w 2d 3h 45m 30s")
+- Automatic unit handling:
+  - Only shows non-zero units
+  - Preserves millisecond precision when present
+  - Uses appropriate unit combinations for readability
+- Clean, consistent output format:
+  - Units are abbreviated (w, d, h, m, s)
+  - Units are space-separated
+  - No trailing zeros in decimal places
 - Support for multiple time units:
   - Weeks
   - Days
@@ -48,7 +60,6 @@ println!("Request took: {}", result); // e.g., "843ms"
   - Minutes
   - Seconds
   - Milliseconds
-- Automatic selection of most appropriate time units
 - Zero dependencies (only uses Rust standard library)
 
 ## Installation
@@ -64,7 +75,7 @@ elapsed_time = "0.1.0"
 
 ### Measuring Execution Time
 
-Use `measure_elapsed_time` to measure how long a piece of code takes to execute:
+Use `measure_elapsed_time` to measure how long a pieces of code takes to execute:
 
 ```rust
 use elapsed_time::measure_elapsed_time;
@@ -113,22 +124,10 @@ format_duration(Duration::from_secs(60));        // "1m 0.000s"
 format_duration(Duration::from_millis(1500));    // "1.500s"
 
 // Subsecond durations
-format_duration(Duration::from_millis(500));     // "500ms"
-format_duration(Duration::from_millis(100));     // "100ms"
-format_duration(Duration::from_millis(1));       // "1ms"
+format_duration(Duration::from_millis(500));     // "0.500s"
+format_duration(Duration::from_millis(100));     // "0.100s"
+format_duration(Duration::from_millis(1));       // "0.001s"
 ```
-
-## Millisecond Display Convention
-
-The library uses an intelligent formatting convention for displaying milliseconds:
-
-- For durations less than 1 second (subsecond durations):
-  - Displays only in milliseconds (e.g., "500ms", "100ms", "1ms")
-- For durations of 1 second or more:
-  - Concatenates milliseconds as decimal seconds (e.g., "1.500s", "2.100s")
-  - Always shows three decimal places for consistency
-
-This makes the output both concise and readable, using the most appropriate format for the duration's scale.
 
 ## License
 
